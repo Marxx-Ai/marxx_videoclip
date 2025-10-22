@@ -1,0 +1,9 @@
+venv
+VideoCLIP-XL.bin
+__pycache__
+dist
+.cache
+marxx_videoclip.egg-info
+venv_test
+.gitattributes
+.DS_Store

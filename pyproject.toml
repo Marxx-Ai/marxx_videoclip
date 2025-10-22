@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "marxx_videoclip"
+version = "0.1.0"
+description = "videoclip version deployed for marxx"
+authors = [
+    { name="marxx", email="priyanshu24nov@gmail.com" }
+]
+license = { text = "Proprietary" }
+dependencies = [
+    "opencv-python",
+    "ftfy",
+    "regex",
+    "timm",
+    "einops"
+]
+readme = "README.md"
+requires-python = ">=3.8"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"marxx_videoclip" = ["**/*.gz"]
+
+[tool.setuptools]
+include-package-data = true

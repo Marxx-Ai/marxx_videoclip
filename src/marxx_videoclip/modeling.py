@@ -7,8 +7,8 @@ import torch
 import torch.nn as nn
 from PIL import Image
 
-from utils.text_encoder import text_encoder
-from utils.vision_encoder import get_vision_encoder
+from .utils.text_encoder import text_encoder
+from .utils.vision_encoder import get_vision_encoder
 
 
 class VideoCLIP_XL(nn.Module):

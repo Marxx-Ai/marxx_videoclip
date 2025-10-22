@@ -4,8 +4,8 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from modeling import modeling
-from utils.text_encoder import text_encoder
+from .modeling import VideoCLIP_XL
+from .utils.text_encoder import text_encoder
 
 class VideoClipXL:
     def __init__(
@@ -20,7 +20,7 @@ class VideoClipXL:
         else:
             self.device = torch.device("cpu")
 
-        self.videoclip_xl = modeling.VideoCLIP_XL()
+        self.videoclip_xl = VideoCLIP_XL()
         state_dict = torch.load(model_path, map_location="cpu")
         self.videoclip_xl.load_state_dict(state_dict)
         self.videoclip_xl = self.videoclip_xl.to(self.device).eval()
@@ -80,6 +80,7 @@ class VideoClipXL:
             video_features = self.videoclip_xl.vision_model.get_vid_features(video_inputs).float()
             video_features = video_features / video_features.norm(dim=-1, keepdim=True)
             return video_features
+
 
     def get_text_embeds(self, texts):
         """
