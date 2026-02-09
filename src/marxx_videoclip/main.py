@@ -28,6 +28,12 @@ class VideoClipXL:
         self.v_mean = np.array([0.485, 0.456, 0.406]).reshape(1,1,3)
         self.v_std = np.array([0.229, 0.224, 0.225]).reshape(1,1,3)
 
+    def _clear_device_cache(self):
+        if self.device.type == "cuda":
+            torch.cuda.empty_cache()
+        elif self.device.type == "mps":
+            torch.mps.empty_cache()
+
     def _frame_from_video(self, video):
         while video.isOpened():
             success, frame = video.read()
@@ -41,7 +47,10 @@ class VideoClipXL:
 
     def video_preprocessing(self, video_path, fnum=8):
         video = cv2.VideoCapture(video_path)
-        frames = [x for x in self._frame_from_video(video)]
+        try:
+            frames = [x for x in self._frame_from_video(video)]
+        finally:
+            video.release()
         step = max(1, len(frames) // fnum) if len(frames) > 0 else 1
         frames = frames[::step][:fnum]
         vid_tube = []
@@ -79,6 +88,8 @@ class VideoClipXL:
             video_inputs = torch.cat([self.video_preprocessing(video) for video in videos], 0).float().to(self.device)
             video_features = self.videoclip_xl.vision_model.get_vid_features(video_inputs).float()
             video_features = video_features / video_features.norm(dim=-1, keepdim=True)
+            del video_inputs
+            self._clear_device_cache()
             return video_features
 
 
@@ -98,5 +109,7 @@ class VideoClipXL:
             image_inputs = torch.cat([self.image_preprocessing(image) for image in images], 0).float().to(self.device)
             image_features = self.videoclip_xl.vision_model.get_vid_features(image_inputs).float()
             image_features = image_features / image_features.norm(dim=-1, keepdim=True)
+            del image_inputs
+            self._clear_device_cache()
             return image_features
 
