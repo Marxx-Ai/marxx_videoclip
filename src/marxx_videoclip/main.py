@@ -1,4 +1,5 @@
 from typing import List
+import gc
 import cv2
 import numpy as np
 import torch
@@ -6,6 +7,8 @@ import torch.nn.functional as F
 
 from .modeling import VideoCLIP_XL
 from .utils.text_encoder import text_encoder
+from .utils.gpu_memory import clear_gpu
+
 
 class VideoClipXL:
     def __init__(
@@ -27,12 +30,28 @@ class VideoClipXL:
 
         self.v_mean = np.array([0.485, 0.456, 0.406]).reshape(1,1,3)
         self.v_std = np.array([0.229, 0.224, 0.225]).reshape(1,1,3)
+        self._released = False
 
     def _clear_device_cache(self):
-        if self.device.type == "cuda":
-            torch.cuda.empty_cache()
-        elif self.device.type == "mps":
-            torch.mps.empty_cache()
+        clear_gpu(self.device, ipc_collect=True, reset_peak_stats=False)
+
+    def release_gpu(self) -> None:
+        """
+        Move the model to CPU, delete it, and clear GPU caches.
+
+        After calling this, the instance must not be used for inference until
+        a new model is loaded. Call this when done with the model to free VRAM
+        (e.g. before loading another model or in a worker that will exit).
+        """
+        if self._released:
+            return
+        if hasattr(self, "videoclip_xl") and self.videoclip_xl is not None:
+            self.videoclip_xl.cpu()
+            del self.videoclip_xl
+            self.videoclip_xl = None
+        self._released = True
+        gc.collect()
+        clear_gpu(self.device, ipc_collect=True, reset_peak_stats=False)
 
     def _frame_from_video(self, video):
         while video.isOpened():
@@ -84,6 +103,8 @@ class VideoClipXL:
         return vid_tube
 
     def get_video_embeds(self, videos):
+        if self._released:
+            raise RuntimeError("Model has been released via release_gpu(); cannot run inference.")
         with torch.no_grad():
             video_inputs = torch.cat([self.video_preprocessing(video) for video in videos], 0).float().to(self.device)
             video_features = self.videoclip_xl.vision_model.get_vid_features(video_inputs).float()
@@ -99,12 +120,19 @@ class VideoClipXL:
         Returns:
             torch.Tensor: shape (len(texts), embedding_dim), already normalized.
         """
-        text_inputs = text_encoder.tokenize(texts, truncate=True).to(self.device)
-        text_features = self.videoclip_xl.text_model.encode_text(text_inputs).float()
-        text_features = text_features / text_features.norm(dim=-1, keepdim=True)
-        return text_features 
+        if self._released:
+            raise RuntimeError("Model has been released via release_gpu(); cannot run inference.")
+        with torch.no_grad():
+            text_inputs = text_encoder.tokenize(texts, truncate=True).to(self.device)
+            text_features = self.videoclip_xl.text_model.encode_text(text_inputs).float()
+            text_features = text_features / text_features.norm(dim=-1, keepdim=True)
+            del text_inputs
+            self._clear_device_cache()
+            return text_features 
 
     def get_image_embeds(self, images):
+        if self._released:
+            raise RuntimeError("Model has been released via release_gpu(); cannot run inference.")
         with torch.no_grad():
             image_inputs = torch.cat([self.image_preprocessing(image) for image in images], 0).float().to(self.device)
             image_features = self.videoclip_xl.vision_model.get_vid_features(image_inputs).float()
